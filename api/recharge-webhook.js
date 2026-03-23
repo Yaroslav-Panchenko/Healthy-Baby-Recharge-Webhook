@@ -30,7 +30,7 @@ export default async function handler(req, res) {
         headers: {
           'Content-Type': 'application/json',
           'X-Recharge-Access-Token': process.env.RECHARGE_API_KEY,
-          'X-Recharge-Version': '2021-11'
+          'X-Recharge-Version': '2021-01'
         },
         body: JSON.stringify({ properties: updatedProperties })
       }
