@@ -63,7 +63,9 @@ export default async function handler(req, res) {
       }
     )
 
-    console.log(`✅ Recharge response: ${response.status}`)
+    const responseData = await response.json()
+    console.log(`✅ Recharge status: ${response.status}`)
+    console.log(`✅ Recharge response: ${JSON.stringify(responseData)}`)
     return res.status(200).json({ ok: true })
   }
 
