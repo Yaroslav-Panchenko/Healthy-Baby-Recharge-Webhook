@@ -13,7 +13,7 @@ function getDiscountPercent(productId) {
 }
 
 async function updateSubscription(subscriptionId, price, discountPercent) {
-  // Спочатку отримуємо поточні properties підписки
+  // Get current properties
   const getResponse = await fetch(
     `https://api.rechargeapps.com/subscriptions/${subscriptionId}`,
     {
@@ -68,7 +68,7 @@ export default async function handler(req, res) {
   const topic = req.headers['x-recharge-topic']
   console.log(`📩 Webhook topic: ${topic}`)
 
-  // subscription/created або subscription/updated
+  // subscription/created or subscription/updated
   if (req.body?.subscription) {
     const subscription = req.body.subscription
 
@@ -90,7 +90,7 @@ export default async function handler(req, res) {
     return res.status(200).json({ ok: true })
   }
 
-  // charge/created — для існуючих підписок
+  // charge/created 
   if (req.body?.charge) {
     const charge = req.body.charge
     const lineItems = charge.line_items || []
