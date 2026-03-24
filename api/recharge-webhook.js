@@ -23,7 +23,11 @@ export default async function handler(req, res) {
   // Підписка
   const subscription = req.body?.subscription
   if (subscription) {
-    const productId = String(subscription.external_product_id?.ecommerce || subscription.shopify_product_id || '')
+    const productId = String(
+      subscription.external_product_id?.ecommerce ||
+      subscription.shopify_product_id ||
+      ''
+    );
     const discountPercent = getDiscountPercent(productId)
 
     console.log(`📦 Subscription: ${subscription.id}, product: ${productId}, discount: ${discountPercent}%`)
