@@ -12,6 +12,53 @@ function getDiscountPercent(productId) {
   return 10
 }
 
+async function updateSubscription(subscriptionId, price, discountPercent) {
+  // Спочатку отримуємо поточні properties підписки
+  const getResponse = await fetch(
+    `https://api.rechargeapps.com/subscriptions/${subscriptionId}`,
+    {
+      headers: {
+        'X-Recharge-Access-Token': process.env.RECHARGE_API_KEY,
+        'X-Recharge-Version': '2021-11'
+      }
+    }
+  )
+  const getData = await getResponse.json()
+  const subscription = getData.subscription
+
+  const originalPrice = (price / (1 - discountPercent / 100)).toFixed(2)
+  const discount = (originalPrice - price).toFixed(2)
+
+  console.log(`💰 price: $${price}, original: $${originalPrice}, discount: $${discount} (${discountPercent}%)`)
+
+  const otherProps = (subscription?.properties || []).filter(
+    p => p.name !== '_subscription_original_price' && p.name !== '_subscription_discount'
+  )
+
+  const updatedProperties = [
+    ...otherProps,
+    { name: '_subscription_original_price', value: `$${originalPrice}` },
+    { name: '_subscription_discount', value: `$${discount}` }
+  ]
+
+  const putResponse = await fetch(
+    `https://api.rechargeapps.com/subscriptions/${subscriptionId}`,
+    {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Recharge-Access-Token': process.env.RECHARGE_API_KEY,
+        'X-Recharge-Version': '2021-11'
+      },
+      body: JSON.stringify({ properties: updatedProperties })
+    }
+  )
+
+  const putData = await putResponse.json()
+  console.log(`✅ Recharge status: ${putResponse.status}`)
+  console.log(`✅ Recharge response: ${JSON.stringify(putData)}`)
+}
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' })
@@ -20,14 +67,14 @@ export default async function handler(req, res) {
   const topic = req.headers['x-recharge-topic']
   console.log(`📩 Webhook topic: ${topic}`)
 
-  // Підписка
-  const subscription = req.body?.subscription
-  if (subscription) {
+  // subscription/created або subscription/updated
+  if (req.body?.subscription) {
+    const subscription = req.body.subscription
+
     const productId = String(
       subscription.external_product_id?.ecommerce ||
-      subscription.shopify_product_id ||
-      ''
-    );
+      subscription.shopify_product_id || ''
+    )
     const discountPercent = getDiscountPercent(productId)
 
     console.log(`📦 Subscription: ${subscription.id}, product: ${productId}, discount: ${discountPercent}%`)
@@ -38,41 +85,45 @@ export default async function handler(req, res) {
     }
 
     const price = parseFloat(subscription.price)
-    const originalPrice = (price / (1 - discountPercent / 100)).toFixed(2)
-    const discount = (originalPrice - price).toFixed(2)
-
-    console.log(`💰 price: $${price}, original: $${originalPrice}, discount: $${discount}`)
-
-    // Зберігаємо існуючі properties + додаємо наші
-    const otherProps = (subscription.properties || []).filter(
-      p => p.name !== '_subscription_original_price' && p.name !== '_subscription_discount'
-    )
-
-    const updatedProperties = [
-      ...otherProps,
-      { name: '_subscription_original_price', value: `$${originalPrice}` },
-      { name: '_subscription_discount', value: `$${discount}` }
-    ]
-
-    const response = await fetch(
-      `https://api.rechargeapps.com/subscriptions/${subscription.id}`,
-      {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Recharge-Access-Token': process.env.RECHARGE_API_KEY,
-          'X-Recharge-Version': '2021-11'
-        },
-        body: JSON.stringify({ properties: updatedProperties })
-      }
-    )
-
-    const responseData = await response.json()
-    console.log(`✅ Recharge status: ${response.status}`)
-    console.log(`✅ Recharge response: ${JSON.stringify(responseData)}`)
+    await updateSubscription(subscription.id, price, discountPercent)
     return res.status(200).json({ ok: true })
   }
 
-  console.log('⏭ No subscription data, skipping')
+  // charge/created — для існуючих підписок
+  if (req.body?.charge) {
+    const charge = req.body.charge
+    const lineItems = charge.line_items || []
+
+    for (const item of lineItems) {
+      // Пропускаємо onetime продукти!
+      if (item.purchase_item_type === 'onetime') {
+        console.log(`⏭ Skipping onetime item`)
+        continue
+      }
+
+      const subscriptionId = item.purchase_item_id
+      if (!subscriptionId) continue
+
+      const productId = String(
+        item.external_product_id?.ecommerce ||
+        item.shopify_product_id || ''
+      )
+      const discountPercent = getDiscountPercent(productId)
+
+      console.log(`📦 Charge item: subscription ${subscriptionId}, product: ${productId}, discount: ${discountPercent}%`)
+
+      if (discountPercent === 0) {
+        console.log(`⏭ 0% discount, skipping`)
+        continue
+      }
+
+      const price = parseFloat(item.unit_price || item.price)
+      await updateSubscription(subscriptionId, price, discountPercent)
+    }
+
+    return res.status(200).json({ ok: true })
+  }
+
+  console.log('⏭ No relevant data, skipping')
   return res.status(200).json({ skipped: true })
 }
