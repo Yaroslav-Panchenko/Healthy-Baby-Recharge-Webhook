@@ -13,6 +13,7 @@ function getDiscountPercent(productId) {
 }
 
 async function updateSubscription(subscriptionId, price, discountPercent) {
+  // Get current properties
   const getResponse = await fetch(
     `https://api.rechargeapps.com/subscriptions/${subscriptionId}`,
     {
@@ -22,31 +23,23 @@ async function updateSubscription(subscriptionId, price, discountPercent) {
       }
     }
   )
-  
   const getData = await getResponse.json()
-  const subscription = getData.subscription // ЦЬОГО РЯДКА НЕ ВИСТАЧАЛО
-
-  if (!subscription) return // Захист, якщо підписку не знайдено
+  const subscription = getData.subscription
 
   const originalPrice = (price / (1 - discountPercent / 100)).toFixed(2)
   const discount = (originalPrice - price).toFixed(2)
 
-  const currentOrigPrice = subscription.properties?.find(p => p.name === '_subscription_original_price')?.value
-  const currentDiscount = subscription.properties?.find(p => p.name === '_subscription_discount')?.value
+  console.log(`💰 price: $${price}, original: $${originalPrice}, discount: $${discount} (${discountPercent}%)`)
 
-  if (currentOrigPrice === `$${originalPrice}` && currentDiscount === `$${discount}`) {
-    console.log(`⏭ Subscription ${subscriptionId} already has correct properties. Skipping...`)
-    return
-  }
-
-  const otherProps = (subscription.properties || []).filter(
+  const otherProps = (subscription?.properties || []).filter(
     p => p.name !== '_subscription_original_price' && p.name !== '_subscription_discount'
   )
 
   const updatedProperties = [
     ...otherProps,
     { name: '_subscription_original_price', value: `$${originalPrice}` },
-    { name: '_subscription_discount', value: `$${discount}` }
+    { name: '_subscription_discount', value: `$${discount}` },
+    { name: '_recharge_webhook', value: 'true' }
   ]
 
   const putResponse = await fetch(
@@ -62,7 +55,9 @@ async function updateSubscription(subscriptionId, price, discountPercent) {
     }
   )
 
+  const putData = await putResponse.json()
   console.log(`✅ Recharge status: ${putResponse.status}`)
+  console.log(`✅ Recharge response: ${JSON.stringify(putData)}`)
 }
 
 export default async function handler(req, res) {
@@ -70,40 +65,65 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' })
   }
 
-  try {
-    // Subscription created/updated
-    if (req.body?.subscription) {
-      const sub = req.body.subscription
-      const productId = String(sub.external_product_id?.ecommerce || sub.shopify_product_id || '')
-      const discountPercent = getDiscountPercent(productId)
+  const topic = req.headers['x-recharge-topic']
+  console.log(`📩 Webhook topic: ${topic}`)
 
-      if (discountPercent > 0) {
-        await updateSubscription(sub.id, parseFloat(sub.price), discountPercent)
-      }
+  // subscription/created or subscription/updated
+  if (req.body?.subscription) {
+    const subscription = req.body.subscription
+
+    const productId = String(
+      subscription.external_product_id?.ecommerce ||
+      subscription.shopify_product_id || ''
+    )
+    const discountPercent = getDiscountPercent(productId)
+
+    console.log(`📦 Subscription: ${subscription.id}, product: ${productId}, discount: ${discountPercent}%`)
+
+    if (discountPercent === 0) {
+      console.log(`⏭ 0% discount, skipping`)
+      return res.status(200).json({ skipped: true })
     }
 
-    // Charge created
-    if (req.body?.charge) {
-      const charge = req.body.charge
-      for (const item of (charge.line_items || [])) {
-        if (item.purchase_item_type === 'onetime') continue
-        
-        const subId = item.purchase_item_id
-        if (!subId) continue
+    const price = parseFloat(subscription.price)
+    await updateSubscription(subscription.id, price, discountPercent)
+    return res.status(200).json({ ok: true })
+  }
 
-        const productId = String(item.external_product_id?.ecommerce || item.shopify_product_id || '')
-        const discountPercent = getDiscountPercent(productId)
+  // charge/created 
+  if (req.body?.charge) {
+    const charge = req.body.charge
+    const lineItems = charge.line_items || []
 
-        if (discountPercent > 0) {
-          const price = parseFloat(item.unit_price || item.price)
-          await updateSubscription(subId, price, discountPercent)
-        }
+    for (const item of lineItems) {
+      if (item.purchase_item_type === 'onetime') {
+        console.log(`⏭ Skipping onetime item`)
+        continue
       }
+
+      const subscriptionId = item.purchase_item_id
+      if (!subscriptionId) continue
+
+      const productId = String(
+        item.external_product_id?.ecommerce ||
+        item.shopify_product_id || ''
+      )
+      const discountPercent = getDiscountPercent(productId)
+
+      console.log(`📦 Charge item: subscription ${subscriptionId}, product: ${productId}, discount: ${discountPercent}%`)
+
+      if (discountPercent === 0) {
+        console.log(`⏭ 0% discount, skipping`)
+        continue
+      }
+
+      const price = parseFloat(item.unit_price || item.price)
+      await updateSubscription(subscriptionId, price, discountPercent)
     }
 
     return res.status(200).json({ ok: true })
-  } catch (err) {
-    console.error('Error:', err.message)
-    return res.status(500).json({ error: err.message })
   }
+
+  console.log('⏭ No relevant data, skipping')
+  return res.status(200).json({ skipped: true })
 }
