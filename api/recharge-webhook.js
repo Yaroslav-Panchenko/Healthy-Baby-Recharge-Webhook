@@ -96,7 +96,6 @@ export default async function handler(req, res) {
     const lineItems = charge.line_items || []
 
     for (const item of lineItems) {
-      // Пропускаємо onetime продукти!
       if (item.purchase_item_type === 'onetime') {
         console.log(`⏭ Skipping onetime item`)
         continue
