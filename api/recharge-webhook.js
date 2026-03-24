@@ -38,7 +38,8 @@ async function updateSubscription(subscriptionId, price, discountPercent) {
   const updatedProperties = [
     ...otherProps,
     { name: '_subscription_original_price', value: `$${originalPrice}` },
-    { name: '_subscription_discount', value: `$${discount}` }
+    { name: '_subscription_discount', value: `$${discount}` },
+    { name: '_recharge_webhook', value: 'true' }
   ]
 
   const putResponse = await fetch(
