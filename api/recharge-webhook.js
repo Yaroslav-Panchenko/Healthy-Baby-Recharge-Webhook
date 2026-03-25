@@ -37,7 +37,7 @@ async function updateSubscription(subscriptionId, price, discountPercent) {
   console.log(`💰 price: $${price}, original: $${originalPrice}, discount: $${discount} (${discountPercent}%)`)
 
   const otherProps = (subscription?.properties || []).filter(
-    p => p.name !== '_subscription_original_price' && p.name !== '_subscription_discount'
+    p => p.name !== '_subscription_original_price' && p.name !== '_subscription_discount' && p.name !== '_recharge_webhook'
   )
 
   const updatedProperties = [
