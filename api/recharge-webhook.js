@@ -29,6 +29,11 @@ async function updateSubscription(subscriptionId, price, discountPercent) {
   const originalPrice = (price / (1 - discountPercent / 100)).toFixed(2)
   const discount = (originalPrice - price).toFixed(2)
 
+  if (!subscription) return
+
+  const currentPrice = subscription?.properties?.find(p => p.name === '_subscription_original_price')?.value
+  if (currentPrice === `$${originalPrice}`) return console.log('⏭ Already updated, skipping to avoid loop')
+
   console.log(`💰 price: $${price}, original: $${originalPrice}, discount: $${discount} (${discountPercent}%)`)
 
   const otherProps = (subscription?.properties || []).filter(
@@ -69,28 +74,28 @@ export default async function handler(req, res) {
   console.log(`📩 Webhook topic: ${topic}`)
 
   // subscription/created or subscription/updated
-  if (req.body?.subscription) {
-    const subscription = req.body.subscription
+  // if (req.body?.subscription) {
+  //   const subscription = req.body.subscription
 
-    const productId = String(
-      subscription.external_product_id?.ecommerce ||
-      subscription.shopify_product_id || ''
-    )
-    const discountPercent = getDiscountPercent(productId)
+  //   const productId = String(
+  //     subscription.external_product_id?.ecommerce ||
+  //     subscription.shopify_product_id || ''
+  //   )
+  //   const discountPercent = getDiscountPercent(productId)
 
-    console.log(`📦 Subscription: ${subscription.id}, product: ${productId}, discount: ${discountPercent}%`)
+  //   console.log(`📦 Subscription: ${subscription.id}, product: ${productId}, discount: ${discountPercent}%`)
 
-    if (discountPercent === 0) {
-      console.log(`⏭ 0% discount, skipping`)
-      return res.status(200).json({ skipped: true })
-    }
+  //   if (discountPercent === 0) {
+  //     console.log(`⏭ 0% discount, skipping`)
+  //     return res.status(200).json({ skipped: true })
+  //   }
 
-    const price = parseFloat(subscription.price)
-    await updateSubscription(subscription.id, price, discountPercent)
-    return res.status(200).json({ ok: true })
-  }
+  //   const price = parseFloat(subscription.price)
+  //   await updateSubscription(subscription.id, price, discountPercent)
+  //   return res.status(200).json({ ok: true })
+  // }
 
-  // charge/created 
+  // charge
   if (req.body?.charge) {
     const charge = req.body.charge
     const lineItems = charge.line_items || []
