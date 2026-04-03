@@ -100,7 +100,10 @@ export default async function handler(req, res) {
 
       // 1. Fetch live data from Shopify
       const shopifyVariant = await getShopifyProductData(item.title, variantId)
-
+      const productId = String(
+        item.external_product_id?.ecommerce ||
+        item.shopify_product_id || ''
+      )
       console.log(shopifyVariant);
       console.log(`📦 Charge item: subscription ${subscriptionId}, product: ${productId}, discount: ${discountPercent}%`)
       
