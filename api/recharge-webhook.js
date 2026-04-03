@@ -86,7 +86,7 @@ export default async function handler(req, res) {
       if (item.purchase_item_type === 'onetime') continue
 
       const subscriptionId = item.purchase_item_id
-      const variantId = item.shopify_variant_id
+      const variantId = item.external_variant_id.ecommerce
       
       const currentPrice = parseFloat(item.unit_price || item.price)
 
