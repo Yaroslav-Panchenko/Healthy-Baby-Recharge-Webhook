@@ -92,6 +92,8 @@ export default async function handler(req, res) {
 
       // 1. Fetch live data from Shopify
       const shopifyVariant = await getShopifyProductData(item.title, variantId)
+
+      console.log(shopifyVariant);
       
 
       if (!shopifyVariant) {
