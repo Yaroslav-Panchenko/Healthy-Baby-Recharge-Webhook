@@ -1,72 +1,19 @@
-import { URLSearchParams } from 'node:url'
-
-const SHOP = process.env.SHOPIFY_SHOP
-const CLIENT_ID = process.env.SHOPIFY_CLIENT_ID
-const CLIENT_SECRET = process.env.SHOPIFY_CLIENT_SECRET
-
-console.log(SHOP, CLIENT_ID, CLIENT_SECRET);
-
-if (!SHOP || !CLIENT_ID || !CLIENT_SECRET) {
-  throw new Error('Set SHOPIFY_SHOP, SHOPIFY_CLIENT_ID, and SHOPIFY_CLIENT_SECRET.')
+const PRODUCT_DISCOUNTS = {
+  '7045256052785': 17,
+  '7053728710705': 0,
+  '6702024392753': 13,
+  '7053449297969': 0,
+  '7097853771825': 0,
 }
 
-let shopifyToken = null
-let shopifyTokenExpiresAt = 0
-
-async function getShopifyToken() {
-  if (shopifyToken && Date.now() < shopifyTokenExpiresAt - 60_000) return shopifyToken
-
-  const response = await fetch(
-    `https://${SHOP}.myshopify.com/admin/oauth/access_token`,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({
-        grant_type: 'client_credentials',
-        client_id: CLIENT_ID,
-        client_secret: CLIENT_SECRET,
-      }),
-    }
-  )
-
-  const errorBody = await response.text();
-  console.error(`❌ Деталі помилки від Shopify: ${errorBody}`);
-  if (!response.ok) throw new Error(`Shopify token error: ${response.status}`)
-  const { access_token, expires_in } = await response.json()
-  shopifyToken = access_token
-  shopifyTokenExpiresAt = Date.now() + expires_in * 1000
-  return shopifyToken
+function getDiscountPercent(productId) {
+  const id = String(productId)
+  if (id in PRODUCT_DISCOUNTS) return PRODUCT_DISCOUNTS[id]
+  return 10
 }
 
-async function getVariantPrices(variantId) {
-  const token = await getShopifyToken()
-
-  const query = `{
-    productVariant(id: "gid://shopify/ProductVariant/${variantId}") {
-      compareAtPrice
-      price
-    }
-  }`
-
-  const response = await fetch(
-    `https://${SHOP}.myshopify.com/admin/api/2025-01/graphql.json`,
-    {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Shopify-Access-Token': token,
-      },
-      body: JSON.stringify({ query }),
-    }
-  )
-
-  const data = await response.json()
-  const variant = data?.data?.productVariant
-  console.log(`🛍 Shopify variant: price=${variant?.price}, compareAtPrice=${variant?.compareAtPrice}`)
-  return variant
-}
-
-async function updateSubscription(subscriptionId, variantId) {
+async function updateSubscription(subscriptionId, price, discountPercent) {
+  // Get current properties
   const getResponse = await fetch(
     `https://api.rechargeapps.com/subscriptions/${subscriptionId}`,
     {
@@ -78,34 +25,24 @@ async function updateSubscription(subscriptionId, variantId) {
   )
   const getData = await getResponse.json()
   const subscription = getData.subscription
+
+  const originalPrice = (price / (1 - discountPercent / 100)).toFixed(2)
+  const discount = (originalPrice - price).toFixed(2)
+
   if (!subscription) return
 
-  const variant = await getVariantPrices(variantId)
-  if (!variant?.compareAtPrice) {
-    console.log(`⏭ No compareAtPrice for variant ${variantId}, skipping`)
-    return
-  }
+  const currentPrice = subscription?.properties?.find(p => p.name === '_subscription_original_price')?.value
+  if (currentPrice === `$${originalPrice}`) return console.log('⏭ Already updated, skipping to avoid loop')
 
-  const price = parseFloat(variant.price)
-  const compareAtPrice = parseFloat(variant.compareAtPrice)
-  const discount = (compareAtPrice - price).toFixed(2)
-
-  if (discount <= 0) {
-    console.log(`⏭ No discount, skipping`)
-    return
-  }
-
-  console.log(`💰 price: $${price}, original: $${compareAtPrice}, discount: $${discount}`)
+  console.log(`💰 price: $${price}, original: $${originalPrice}, discount: $${discount} (${discountPercent}%)`)
 
   const otherProps = (subscription?.properties || []).filter(
-    p => p.name !== '_subscription_original_price' &&
-         p.name !== '_subscription_discount' &&
-         p.name !== '_recharge_webhook'
+    p => p.name !== '_subscription_original_price' && p.name !== '_subscription_discount' && p.name !== '_recharge_webhook'
   )
 
   const updatedProperties = [
     ...otherProps,
-    { name: '_subscription_original_price', value: `$${compareAtPrice.toFixed(2)}` },
+    { name: '_subscription_original_price', value: `$${originalPrice}` },
     { name: '_subscription_discount', value: `$${discount}` },
     { name: '_recharge_webhook', value: 'true' }
   ]
@@ -136,29 +73,62 @@ export default async function handler(req, res) {
   const topic = req.headers['x-recharge-topic']
   console.log(`📩 Webhook topic: ${topic}`)
 
-  if (!req.body?.charge) {
-    console.log('⏭ No charge data, skipping')
-    return res.status(200).json({ skipped: true })
-  }
+  // subscription/created or subscription/updated
+  // if (req.body?.subscription) {
+  //   const subscription = req.body.subscription
 
-  const charge = req.body.charge
-  const lineItems = charge.line_items || []
+  //   const productId = String(
+  //     subscription.external_product_id?.ecommerce ||
+  //     subscription.shopify_product_id || ''
+  //   )
+  //   const discountPercent = getDiscountPercent(productId)
 
-  for (const item of lineItems) {
-    if (item.purchase_item_type === 'onetime') {
-      console.log(`⏭ Skipping onetime item`)
-      continue
+  //   console.log(`📦 Subscription: ${subscription.id}, product: ${productId}, discount: ${discountPercent}%`)
+
+  //   if (discountPercent === 0) {
+  //     console.log(`⏭ 0% discount, skipping`)
+  //     return res.status(200).json({ skipped: true })
+  //   }
+
+  //   const price = parseFloat(subscription.price)
+  //   await updateSubscription(subscription.id, price, discountPercent)
+  //   return res.status(200).json({ ok: true })
+  // }
+
+  // charge
+  if (req.body?.charge) {
+    const charge = req.body.charge
+    const lineItems = charge.line_items || []
+
+    for (const item of lineItems) {
+      if (item.purchase_item_type === 'onetime') {
+        console.log(`⏭ Skipping onetime item`)
+        continue
+      }
+
+      const subscriptionId = item.purchase_item_id
+      if (!subscriptionId) continue
+
+      const productId = String(
+        item.external_product_id?.ecommerce ||
+        item.shopify_product_id || ''
+      )
+      const discountPercent = getDiscountPercent(productId)
+
+      console.log(`📦 Charge item: subscription ${subscriptionId}, product: ${productId}, discount: ${discountPercent}%`)
+
+      if (discountPercent === 0) {
+        console.log(`⏭ 0% discount, skipping`)
+        continue
+      }
+
+      const price = parseFloat(item.unit_price || item.price)
+      await updateSubscription(subscriptionId, price, discountPercent)
     }
 
-    const subscriptionId = item.purchase_item_id
-    if (!subscriptionId) continue
-
-    const variantId = item.external_variant_id?.ecommerce
-    if (!variantId) continue
-
-    console.log(`📦 Charge item: subscription ${subscriptionId}, variant ${variantId}`)
-    await updateSubscription(subscriptionId, variantId)
+    return res.status(200).json({ ok: true })
   }
 
-  return res.status(200).json({ ok: true })
+  console.log('⏭ No relevant data, skipping')
+  return res.status(200).json({ skipped: true })
 }
