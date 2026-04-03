@@ -1,7 +1,12 @@
-const res = await fetch('https://healthybaby.com/products/our-diaper.json');
-const data = await res.json();
-
-console.log(data);
+(async () => {
+  try {
+    const res = await fetch('https://healthybaby.com/products/our-diaper.json');
+    const data = await res.json();
+    console.log(data);
+  } catch (err) {
+    console.error(err);
+  }
+})();
 
 
 
