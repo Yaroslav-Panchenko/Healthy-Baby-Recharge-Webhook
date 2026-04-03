@@ -4,6 +4,8 @@ const SHOP = process.env.SHOPIFY_SHOP
 const CLIENT_ID = process.env.SHOPIFY_CLIENT_ID
 const CLIENT_SECRET = process.env.SHOPIFY_CLIENT_SECRET
 
+console.log(SHOP, CLIENT_ID, CLIENT_SECRET);
+
 if (!SHOP || !CLIENT_ID || !CLIENT_SECRET) {
   throw new Error('Set SHOPIFY_SHOP, SHOPIFY_CLIENT_ID, and SHOPIFY_CLIENT_SECRET.')
 }
