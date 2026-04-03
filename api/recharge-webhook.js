@@ -105,7 +105,7 @@ export default async function handler(req, res) {
         item.shopify_product_id || ''
       )
       console.log(shopifyVariant);
-      console.log(`📦 Charge item: subscription ${subscriptionId}, product: ${productId}, discount: ${discountPercent}%`)
+      console.log(`📦 Charge item: subscription ${subscriptionId}, product: ${productId}`)
       
 
       if (!shopifyVariant) {
