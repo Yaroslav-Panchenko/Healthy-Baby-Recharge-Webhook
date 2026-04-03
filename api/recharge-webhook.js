@@ -1,3 +1,11 @@
+const res = await fetch('https://healthybaby.com/products/our-diaper.json');
+const data = await res.json();
+
+console.log(data);
+
+
+
+
 const PRODUCT_DISCOUNTS = {
   '7045256052785': 17,
   '7053728710705': 0,
