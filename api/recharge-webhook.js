@@ -49,7 +49,8 @@ async function updateSubscription(subscriptionId, currentPrice, originalPrice) {
   // }
 
   console.log(`💰 Updating: Current $${currentPrice}, Original $${originalPrice.toFixed(2)} (${discountPercent}%)`)
-
+  console.log(`💰 price: $${price}, original: $${originalPrice}, discount: $${discount} (${discountPercent}%)`)
+  
   const otherProps = (subscription?.properties || []).filter(
     p => !['_subscription_original_price', '_subscription_discount', '_recharge_webhook'].includes(p.name)
   )
@@ -61,7 +62,7 @@ async function updateSubscription(subscriptionId, currentPrice, originalPrice) {
     { name: '_recharge_webhook', value: 'true' }
   ]
 
-  await fetch(
+  const putResponse = await fetch(
     `https://api.rechargeapps.com/subscriptions/${subscriptionId}`,
     {
       method: 'PUT',
@@ -73,11 +74,18 @@ async function updateSubscription(subscriptionId, currentPrice, originalPrice) {
       body: JSON.stringify({ properties: updatedProperties })
     }
   )
+
+  const putData = await putResponse.json()
+  console.log(`✅ Recharge status: ${putResponse.status}`)
+  console.log(`✅ Recharge response: ${JSON.stringify(putData)}`)
 }
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
-
+  
+    const topic = req.headers['x-recharge-topic']
+    console.log(`📩 Webhook topic: ${topic}`)
+  
   const charge = req.body?.charge
   if (charge) {
     const lineItems = charge.line_items || []
@@ -94,6 +102,7 @@ export default async function handler(req, res) {
       const shopifyVariant = await getShopifyProductData(item.title, variantId)
 
       console.log(shopifyVariant);
+      console.log(`📦 Charge item: subscription ${subscriptionId}, product: ${productId}, discount: ${discountPercent}%`)
       
 
       if (!shopifyVariant) {
