@@ -27,6 +27,8 @@ async function getShopifyToken() {
     }
   )
 
+  const errorBody = await response.text();
+  console.error(`❌ Деталі помилки від Shopify: ${errorBody}`);
   if (!response.ok) throw new Error(`Shopify token error: ${response.status}`)
   const { access_token, expires_in } = await response.json()
   shopifyToken = access_token
