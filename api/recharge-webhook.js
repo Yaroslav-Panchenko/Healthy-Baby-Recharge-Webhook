@@ -61,7 +61,8 @@ async function updateSubscription(subscriptionId, originalPrice, discountValue) 
   const currentDiscountProp = subscription?.properties?.find(p => p.name === '_subscription_discount')?.value;
   if (currentPriceProp === `$${originalPrice}` && currentDiscountProp === `$${discountValue}`) return console.log('⏭ Already updated, skipping to avoid loop')
 
-  console.log(`💰 currentPrice: $${subscription.price}, originalPrice: $${originalPrice}, discountValue: $${discountValue}`)
+  console.log('Current subscription', subscription)
+  // console.log(`💰 currentPrice: $${subscription.price}, originalPrice: $${originalPrice}, discountValue: $${discountValue}`)
 
   const otherProps = (subscription?.properties || []).filter(
     p => p.name !== '_subscription_original_price' && p.name !== '_subscription_discount' && p.name !== '_recharge_webhook'
@@ -89,7 +90,7 @@ async function updateSubscription(subscriptionId, originalPrice, discountValue) 
 
   const putData = await putResponse.json()
   console.log(`✅ Recharge status: ${putResponse.status}`)
-  console.log(`✅ Recharge response: ${JSON.stringify(putData)}`)
+  console.log(`✅ Updated subscription data: ${JSON.stringify(putData)}`)
 }
 
 export default async function handler(req, res) {
@@ -112,8 +113,6 @@ export default async function handler(req, res) {
         continue
       }
 
-      console.log('Subscription item data', item)
-
       const subscriptionId = item.purchase_item_id;
       if (!subscriptionId) continue
 
@@ -132,11 +131,7 @@ export default async function handler(req, res) {
         originalPrice = Number((currentPrice / (1 - discountPercent / 100)).toFixed(2))
         discountValue = Number((originalPrice - currentPrice).toFixed(2))
       }
-
-
-
-      console.log(`📦 Charge item: subscription ${subscriptionId}, product: ${productId}, variant: ${variantId}`)
-
+      
       if (discountValue <= 0) {
         console.log('⏭  0% discount, skipping')
         continue
