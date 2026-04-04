@@ -100,7 +100,7 @@ export default async function handler(req, res) {
 
   const topic = req.headers['x-recharge-topic']
   console.log(`📩 Webhook topic: ${topic}`)
-  console.log(`📩 Webhook data`, req.body)
+  console.log(`📩 Webhook data`, req.body?.charge?.line_items)
 
   // charge
   if (req.body?.charge) {
@@ -131,7 +131,7 @@ export default async function handler(req, res) {
         originalPrice = Number((currentPrice / (1 - discountPercent / 100)).toFixed(2))
         discountValue = Number((originalPrice - currentPrice).toFixed(2))
       }
-      
+
       if (discountValue <= 0) {
         console.log('⏭  0% discount, skipping')
         continue
