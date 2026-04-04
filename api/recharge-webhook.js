@@ -93,6 +93,9 @@ export default async function handler(req, res) {
     for (const item of lineItems) {
       if (item.purchase_item_type === 'onetime') continue
 
+
+      console.log('Subscription item data', item)
+
       const subscriptionId = item.purchase_item_id
       const variantId = item.external_variant_id.ecommerce
       
