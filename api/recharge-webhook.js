@@ -57,8 +57,9 @@ async function updateSubscription(subscriptionId, originalPrice, discountValue) 
 
   if (!subscription) return
 
-  const currentPriceProp = subscription?.properties?.find(p => p.name === '_subscription_original_price')?.value
-  if (currentPriceProp === `$${originalPrice}`) return console.log('⏭ Already updated, skipping to avoid loop')
+  const currentPriceProp = subscription?.properties?.find(p => p.name === '_subscription_original_price')?.value;
+  const currentDiscountProp = subscription?.properties?.find(p => p.name === '_subscription_discount')?.value;
+  if (currentPriceProp === `$${originalPrice}` && currentDiscountProp === `$${discountValue}`) return console.log('⏭ Already updated, skipping to avoid loop')
 
   console.log(`💰 currentPrice: $${subscription.price}, originalPrice: $${originalPrice}, discountValue: $${discountValue}`)
 
