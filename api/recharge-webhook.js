@@ -62,9 +62,8 @@ async function updateSubscription(subscriptionId, originalPrice, discountValue) 
   if (currentPriceProp === `$${originalPrice}` && currentDiscountProp === `$${discountValue}`) {
     return console.log('⏭ Already updated, skipping to avoid loop')
   }
-
-  console.log('Current subscription', subscription)
-  // console.log(`💰 currentPrice: $${subscription.price}, originalPrice: $${originalPrice}, discountValue: $${discountValue}`)
+  
+  console.log(`💰 currentPrice: $${subscription.price}, originalPrice: $${originalPrice}, discountValue: $${discountValue}`)
 
   const otherProps = (subscription?.properties || []).filter(
     p => !['_subscription_original_price', '_subscription_discount', '_recharge_webhook'].includes(p.name)
